@@ -19,31 +19,24 @@ data class SshConfig(
     val keepAliveInterval: Int = 15,
 )
 
-class SshConnection(private val config: SshConfig) {
+class SshConnection(
+    private val config: SshConfig,
+    private val logCallback: ((String) -> Unit)? = null,
+) {
 
     companion object {
         private const val TAG = "SshConnection"
         private const val DEFAULT_TIMEOUT = 30000
-
-        init {
-            JSch.setLogger(object : Logger {
-                override fun isEnabled(level: Int): Boolean = true
-                override fun log(level: Int, message: String) {
-                    when (level) {
-                        Logger.DEBUG -> Log.d("JSch", message)
-                        Logger.INFO -> Log.i("JSch", message)
-                        Logger.WARN -> Log.w("JSch", message)
-                        Logger.ERROR -> Log.e("JSch", message)
-                        Logger.FATAL -> Log.e("JSch", message)
-                    }
-                }
-            })
-        }
     }
 
     private var session: Session? = null
 
     val isConnected: Boolean get() = session?.isConnected == true
+
+    private fun log(message: String) {
+        Log.d(TAG, message)
+        logCallback?.invoke(message)
+    }
 
     suspend fun connect(): Session = withContext(Dispatchers.IO) {
         if (session?.isConnected == true) {
