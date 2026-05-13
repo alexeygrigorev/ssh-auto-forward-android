@@ -112,7 +112,7 @@ class AddEditHostViewModel @Inject constructor(
 
         val keyDir = File(context.filesDir, "ssh-keys")
         keyDir.mkdirs()
-        val keyFile = File(keyDir, "$keyName.pem")
+        val keyFile = File(keyDir, keyName)
         keyFile.writeText(content)
 
         val entity = SshKeyEntity(

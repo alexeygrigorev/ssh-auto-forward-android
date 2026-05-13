@@ -3,8 +3,8 @@ package com.sshautoforward.ssh
 import android.util.Log
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.Logger
 import com.jcraft.jsch.Session
-import com.jcraft.jsch.UserInfo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -19,18 +19,26 @@ data class SshConfig(
     val keepAliveInterval: Int = 15,
 )
 
-sealed class SshConnectionState {
-    data object Disconnected : SshConnectionState()
-    data class Connecting(val attempt: Int) : SshConnectionState()
-    data class Connected(val session: Session) : SshConnectionState()
-    data class Error(val message: String) : SshConnectionState()
-}
-
 class SshConnection(private val config: SshConfig) {
 
     companion object {
         private const val TAG = "SshConnection"
         private const val DEFAULT_TIMEOUT = 30000
+
+        init {
+            JSch.setLogger(object : Logger {
+                override fun isEnabled(level: Int): Boolean = true
+                override fun log(level: Int, message: String) {
+                    when (level) {
+                        Logger.DEBUG -> Log.d("JSch", message)
+                        Logger.INFO -> Log.i("JSch", message)
+                        Logger.WARN -> Log.w("JSch", message)
+                        Logger.ERROR -> Log.e("JSch", message)
+                        Logger.FATAL -> Log.e("JSch", message)
+                    }
+                }
+            })
+        }
     }
 
     private var session: Session? = null
@@ -44,8 +52,14 @@ class SshConnection(private val config: SshConfig) {
 
         val jsch = JSch()
         try {
-            jsch.addIdentity(config.privateKeyPath, config.passphrase)
+            if (config.passphrase != null) {
+                jsch.addIdentity(config.privateKeyPath, config.passphrase)
+            } else {
+                jsch.addIdentity(config.privateKeyPath)
+            }
+            Log.i(TAG, "Loaded identity from ${config.privateKeyPath}")
         } catch (e: Exception) {
+            Log.e(TAG, "Failed to load private key from ${config.privateKeyPath}: ${e.message}", e)
             throw SshException("Failed to load private key: ${e.message}", e)
         }
 
@@ -59,11 +73,13 @@ class SshConnection(private val config: SshConfig) {
         s.setServerAliveCountMax(3)
 
         try {
+            Log.i(TAG, "Connecting to ${config.hostname}:${config.port} as ${config.username}...")
             s.connect()
             this@SshConnection.session = s
             Log.i(TAG, "Connected to ${config.hostname}:${config.port}")
             s
         } catch (e: Exception) {
+            Log.e(TAG, "Connection failed: ${e.message}", e)
             throw SshException("Connection failed: ${e.message}", e)
         }
     }
@@ -93,7 +109,7 @@ class SshConnection(private val config: SshConfig) {
         channel.disconnect()
 
         val exitStatus = channel.exitStatus
-        if (exitStatus != 0) {
+        if (exitStatus != 0 && exitStatus != -1) {
             val error = errorStream.toString("UTF-8")
             throw SshException("Command failed (exit=$exitStatus): $error")
         }
