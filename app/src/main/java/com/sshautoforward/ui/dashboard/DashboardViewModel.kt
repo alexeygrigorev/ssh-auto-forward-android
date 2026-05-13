@@ -1,19 +1,18 @@
 package com.sshautoforward.ui.dashboard
 
-import android.content.Intent
-import android.net.Uri
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sshautoforward.data.db.entity.HostEntity
 import com.sshautoforward.data.repository.HostRepository
-import com.sshautoforward.data.repository.SshKeyRepository
+import com.sshautoforward.service.ForwardingService
 import com.sshautoforward.ssh.AutoForwarder
 import com.sshautoforward.ssh.AutoForwarderEvent
 import com.sshautoforward.ssh.PortForwardStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -30,11 +29,11 @@ data class DashboardState(
 
 @HiltViewModel
 class DashboardViewModel @Inject constructor(
+    application: Application,
     savedStateHandle: SavedStateHandle,
     private val hostRepository: HostRepository,
-    private val sshKeyRepository: SshKeyRepository,
     private val autoForwarder: AutoForwarder,
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     private val hostId: Long = savedStateHandle["hostId"] ?: error("hostId required")
 
@@ -54,15 +53,12 @@ class DashboardViewModel @Inject constructor(
             _state.value = _state.value.copy(host = host)
             addLog("Loading host: ${host.name} (${host.hostname}:${host.port})")
 
-            val key = sshKeyRepository.getById(host.keyId)
-            if (key == null) {
-                _state.value = _state.value.copy(lastError = "SSH key not found")
-                addLog("ERROR: SSH key not found (keyId=${host.keyId})")
-                return@launch
+            if (autoForwarder.isRunning.value && autoForwarder.currentHostId == hostId) {
+                addLog("Forwarding already active for ${host.name}")
+            } else {
+                addLog("Starting forwarding service for ${host.hostname}:${host.port}...")
+                ForwardingService.start(getApplication(), hostId)
             }
-            addLog("Using key: ${key.name}")
-            addLog("Connecting to ${host.hostname}:${host.port}...")
-            autoForwarder.start(host, key.privateKeyPath)
         }
 
         viewModelScope.launch {
@@ -116,17 +112,12 @@ class DashboardViewModel @Inject constructor(
         autoForwarder.togglePort(remotePort)
     }
 
-    fun stop() {
-        autoForwarder.stop()
+    fun disconnect() {
+        ForwardingService.stop(getApplication())
     }
 
     private fun addLog(message: String) {
         val timestamp = timeFormat.format(Date())
         _logMessages.value = _logMessages.value + "[$timestamp] $message"
-    }
-
-    override fun onCleared() {
-        autoForwarder.stop()
-        super.onCleared()
     }
 }

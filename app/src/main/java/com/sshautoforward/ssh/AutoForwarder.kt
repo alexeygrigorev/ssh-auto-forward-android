@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import javax.inject.Singleton
 
 data class PortForwardStatus(
     val remotePort: Int,
@@ -43,6 +44,7 @@ sealed class AutoForwarderEvent {
     data class Log(val message: String) : AutoForwarderEvent()
 }
 
+@Singleton
 class AutoForwarder @Inject constructor(
     private val portRemappingRepository: PortRemappingRepository,
 ) {
@@ -76,6 +78,8 @@ class AutoForwarder @Inject constructor(
     private var scope: CoroutineScope? = null
     private var host: HostEntity? = null
     private var nextLocalPort = 3000
+
+    val currentHostId: Long? get() = host?.id
 
     fun start(host: HostEntity, privateKeyPath: String, passphrase: String? = null) {
         if (_isRunning.value) stop()
