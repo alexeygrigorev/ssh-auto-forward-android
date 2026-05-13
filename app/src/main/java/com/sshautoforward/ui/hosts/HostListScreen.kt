@@ -1,5 +1,7 @@
 package com.sshautoforward.ui.hosts
 
+import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
@@ -23,6 +25,7 @@ import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -58,6 +61,7 @@ fun HostListScreen(
     viewModel: HostListViewModel = hiltViewModel(),
 ) {
     val hosts by viewModel.hosts.collectAsState()
+    val updateInfo by viewModel.updateAvailable.collectAsState()
     val context = LocalContext.current
     val versionName = remember {
         try {
@@ -77,6 +81,21 @@ fun HostListScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+            },
+            actions = {
+                if (updateInfo != null) {
+                    IconButton(onClick = {
+                        context.startActivity(
+                            Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo!!.apkUrl))
+                        )
+                    }) {
+                        Icon(
+                            Icons.Default.SystemUpdate,
+                            contentDescription = "Update available",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             })
         },

@@ -6,6 +6,7 @@ import com.sshautoforward.data.db.AppDatabase
 import com.sshautoforward.data.db.dao.HostDao
 import com.sshautoforward.data.db.dao.PortRemappingDao
 import com.sshautoforward.data.db.dao.SshKeyDao
+import com.sshautoforward.util.ReleaseChecker
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -30,4 +31,8 @@ object DatabaseModule {
 
     @Provides
     fun providePortRemappingDao(db: AppDatabase): PortRemappingDao = db.portRemappingDao()
+
+    @Provides
+    @Singleton
+    fun provideReleaseChecker(): ReleaseChecker = ReleaseChecker()
 }

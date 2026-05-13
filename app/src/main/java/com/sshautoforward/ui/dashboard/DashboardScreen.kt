@@ -189,78 +189,53 @@ private fun PortRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "${port.remotePort}",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontFamily = FontFamily.Monospace,
-                    )
-                    if (port.localPort != port.remotePort) {
-                        Text(
-                            " -> ${port.localPort}",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = FontFamily.Monospace,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        port.processName,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                Row(modifier = Modifier.padding(top = 4.dp)) {
-                    val statusText = when (port.state) {
-                        ForwardState.FORWARDING -> "Forwarded"
-                        ForwardState.FORWARDING_MANUAL -> "Forwarded (manual)"
-                        ForwardState.AVAILABLE -> "Available"
-                        ForwardState.STOPPED -> "Stopped"
-                    }
-                    val statusColor = when (port.state) {
-                        ForwardState.FORWARDING, ForwardState.FORWARDING_MANUAL ->
-                            MaterialTheme.colorScheme.primary
-                        ForwardState.AVAILABLE ->
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        ForwardState.STOPPED ->
-                            MaterialTheme.colorScheme.error
-                    }
-                    Text(
-                        statusText,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = statusColor,
-                    )
-                    if (port.state == ForwardState.FORWARDING ||
-                        port.state == ForwardState.FORWARDING_MANUAL
-                    ) {
-                        val traffic = formatBytes(port.bytesForwarded + port.bytesReceived)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            traffic,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontFamily = FontFamily.Monospace,
-                        )
-                    }
-                }
+            Text(
+                "${port.remotePort}",
+                style = MaterialTheme.typography.bodyLarge,
+                fontFamily = FontFamily.Monospace,
+            )
+            if (port.localPort != port.remotePort) {
+                Text(
+                    "→${port.localPort}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                port.processName,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            if (port.state == ForwardState.FORWARDING ||
+                port.state == ForwardState.FORWARDING_MANUAL
+            ) {
+                val traffic = formatBytes(port.bytesForwarded + port.bytesReceived)
+                Text(
+                    traffic,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = FontFamily.Monospace,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             if (port.state == ForwardState.FORWARDING || port.state == ForwardState.FORWARDING_MANUAL) {
-                IconButton(onClick = onOpenUrl) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = "Open URL")
+                IconButton(onClick = onOpenUrl, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.OpenInBrowser, contentDescription = "Open URL", modifier = Modifier.size(18.dp))
                 }
-                IconButton(onClick = onToggle) {
-                    Icon(Icons.Default.Stop, contentDescription = "Stop")
+                IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(18.dp))
                 }
             } else if (port.state == ForwardState.AVAILABLE) {
-                IconButton(onClick = onToggle) {
-                    Icon(Icons.Default.PlayArrow, contentDescription = "Start")
+                IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.PlayArrow, contentDescription = "Start", modifier = Modifier.size(18.dp))
                 }
             }
         }
