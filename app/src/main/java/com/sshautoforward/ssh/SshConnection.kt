@@ -58,6 +58,14 @@ class SshConnection(private val config: SshConfig) {
             if (!keyFile.exists()) {
                 throw SshException("Private key file not found: ${config.privateKeyPath}")
             }
+            val keyContent = keyFile.readText()
+            val firstLine = keyContent.lineSequence().firstOrNull() ?: ""
+            Log.i(TAG, "Key first line: $firstLine")
+            Log.i(TAG, "Key last line: ${keyContent.lineSequence().lastOrNull() ?: ""}")
+            Log.i(TAG, "Key total lines: ${keyContent.lines().size}")
+            if (!firstLine.contains("PRIVATE KEY")) {
+                throw SshException("File does not look like a private key: $firstLine")
+            }
             if (config.passphrase != null) {
                 Log.i(TAG, "Loading identity with passphrase...")
                 jsch.addIdentity(config.privateKeyPath, config.passphrase)
@@ -65,12 +73,12 @@ class SshConnection(private val config: SshConfig) {
                 Log.i(TAG, "Loading identity without passphrase...")
                 jsch.addIdentity(config.privateKeyPath)
             }
-            Log.i(TAG, "Identity loaded successfully, name: ${jsch.identityNames}")
+            Log.i(TAG, "Identity loaded successfully, names: ${jsch.identityNames}")
         } catch (e: SshException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load private key: ${e.message}", e)
-            throw SshException("Failed to load private key: ${e.message}", e)
+            Log.e(TAG, "Failed to load private key: ${e.javaClass.simpleName}: ${e.message}", e)
+            throw SshException("Failed to load private key: ${e.javaClass.simpleName}: ${e.message}", e)
         }
 
         val s = jsch.getSession(config.username, config.hostname, config.port)
@@ -90,8 +98,10 @@ class SshConnection(private val config: SshConfig) {
             Log.i(TAG, "Connected to ${config.hostname}:${config.port}, server version: ${s.serverVersion}")
             s
         } catch (e: Exception) {
-            Log.e(TAG, "Connection failed: ${e.message}", e)
-            throw SshException("Connection failed: ${e.message}", e)
+            val cause = e.cause
+            val detail = if (cause != null) "${e.javaClass.simpleName}: ${e.message} (caused by ${cause.javaClass.simpleName}: ${cause.message})" else "${e.javaClass.simpleName}: ${e.message}"
+            Log.e(TAG, "Connection failed: $detail", e)
+            throw SshException("Connection failed: $detail", e)
         }
     }
 

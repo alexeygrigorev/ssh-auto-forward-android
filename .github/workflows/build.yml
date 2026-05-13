@@ -46,7 +46,7 @@ jobs:
           fi
           VERSION="${TAG_VERSION}-${TIMESTAMP}-${SHORT_SHA}"
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "app_version_name=${VERSION}" >> $GITHUB_ENV
+          echo "APP_VERSION_NAME=${VERSION}" >> $GITHUB_ENV
           echo "Building version: ${VERSION}"
 
       - name: Grant execute permission for gradlew

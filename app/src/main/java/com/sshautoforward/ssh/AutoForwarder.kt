@@ -114,6 +114,10 @@ class AutoForwarder @Inject constructor(
                 emitLog("Key path: $privateKeyPath")
                 val keyFile = java.io.File(privateKeyPath)
                 emitLog("Key exists: ${keyFile.exists()}, size: ${if (keyFile.exists()) keyFile.length() else 0} bytes")
+                if (keyFile.exists()) {
+                    val firstLine = keyFile.readLines().firstOrNull() ?: ""
+                    emitLog("Key format: $firstLine")
+                }
 
                 val config = SshConfig(
                     hostname = host.hostname,
