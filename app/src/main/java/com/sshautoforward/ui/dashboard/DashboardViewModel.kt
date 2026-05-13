@@ -9,21 +9,23 @@ import com.sshautoforward.data.db.entity.HostEntity
 import com.sshautoforward.data.repository.HostRepository
 import com.sshautoforward.data.repository.SshKeyRepository
 import com.sshautoforward.ssh.AutoForwarder
+import com.sshautoforward.ssh.AutoForwarderEvent
 import com.sshautoforward.ssh.PortForwardStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import javax.inject.Inject
 
 data class DashboardState(
     val host: HostEntity? = null,
     val isConnected: Boolean = false,
     val isRunning: Boolean = false,
-    val logMessages: List<String> = emptyList(),
+    val lastError: String? = null,
 )
 
 @HiltViewModel
@@ -44,18 +46,31 @@ class DashboardViewModel @Inject constructor(
     private val _logMessages = MutableStateFlow<List<String>>(emptyList())
     val logMessages: StateFlow<List<String>> = _logMessages.asStateFlow()
 
+    private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+
     init {
         viewModelScope.launch {
             val host = hostRepository.getById(hostId) ?: return@launch
             _state.value = _state.value.copy(host = host)
+            addLog("Loading host: ${host.name} (${host.hostname}:${host.port})")
 
-            val key = sshKeyRepository.getById(host.keyId) ?: return@launch
+            val key = sshKeyRepository.getById(host.keyId)
+            if (key == null) {
+                _state.value = _state.value.copy(lastError = "SSH key not found")
+                addLog("ERROR: SSH key not found (keyId=${host.keyId})")
+                return@launch
+            }
+            addLog("Using key: ${key.name}")
+            addLog("Connecting to ${host.hostname}:${host.port}...")
             autoForwarder.start(host, key.privateKeyPath)
         }
 
         viewModelScope.launch {
             autoForwarder.isConnected.collect { connected ->
-                _state.value = _state.value.copy(isConnected = connected)
+                _state.value = _state.value.copy(
+                    isConnected = connected,
+                    lastError = if (connected) null else _state.value.lastError,
+                )
             }
         }
 
@@ -67,8 +82,28 @@ class DashboardViewModel @Inject constructor(
 
         viewModelScope.launch {
             autoForwarder.events.collect { event ->
-                event?.let {
-                    addLog(it.toString())
+                when (event) {
+                    is AutoForwarderEvent.Connected -> {
+                        _state.value = _state.value.copy(lastError = null)
+                        addLog("Connected to ${event.host}")
+                    }
+                    is AutoForwarderEvent.Disconnected -> {
+                        addLog("Disconnected: ${event.reason}")
+                    }
+                    is AutoForwarderEvent.PortForwarded -> {
+                        addLog("Forwarding port ${event.remotePort} -> localhost:${event.localPort}")
+                    }
+                    is AutoForwarderEvent.PortRemoved -> {
+                        addLog("Stopped port ${event.remotePort}")
+                    }
+                    is AutoForwarderEvent.Error -> {
+                        _state.value = _state.value.copy(lastError = event.message)
+                        addLog("ERROR: ${event.message}")
+                    }
+                    is AutoForwarderEvent.PortDiscovered -> {
+                        addLog("Discovered port ${event.port} (${event.process})")
+                    }
+                    null -> {}
                 }
             }
         }
@@ -83,7 +118,8 @@ class DashboardViewModel @Inject constructor(
     }
 
     private fun addLog(message: String) {
-        _logMessages.value = _logMessages.value + message
+        val timestamp = timeFormat.format(Date())
+        _logMessages.value = _logMessages.value + "[$timestamp] $message"
     }
 
     override fun onCleared() {

@@ -2,6 +2,7 @@ package com.sshautoforward.ui.hosts
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sshautoforward.data.db.entity.HostEntity
@@ -129,8 +130,7 @@ class AddEditHostViewModel @Inject constructor(
                     it.bufferedReader().readText()
                 } ?: return@launch
 
-                val fileName = uri.lastPathSegment?.substringAfterLast("/")
-                    ?: "uploaded-key"
+                val fileName = getFileName(context, uri)
 
                 _state.value = _state.value.copy(
                     keyContent = content,
@@ -141,5 +141,15 @@ class AddEditHostViewModel @Inject constructor(
                 _state.value = _state.value.copy(error = "Failed to read key file: ${e.message}")
             }
         }
+    }
+
+    private fun getFileName(context: Context, uri: Uri): String {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex >= 0 && cursor.moveToFirst()) {
+                return cursor.getString(nameIndex)
+            }
+        }
+        return uri.lastPathSegment?.substringAfterLast("/") ?: "uploaded-key"
     }
 }
