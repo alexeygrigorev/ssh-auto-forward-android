@@ -44,5 +44,6 @@ Thumbs.db
 
 # Secrets
 *.keystore
+!debug.keystore
 *.jks
 keystore.properties
