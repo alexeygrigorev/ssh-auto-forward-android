@@ -113,7 +113,7 @@ class AddEditHostViewModel @Inject constructor(
         val keyDir = File(context.filesDir, "ssh-keys")
         keyDir.mkdirs()
         val keyFile = File(keyDir, keyName)
-        keyFile.writeText(content)
+        keyFile.writeText(content, Charsets.UTF_8)
 
         val entity = SshKeyEntity(
             name = keyName,
@@ -127,13 +127,23 @@ class AddEditHostViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 val content = context.contentResolver.openInputStream(uri)?.use {
-                    it.bufferedReader().readText()
+                    it.bufferedReader(Charsets.UTF_8).readText()
                 } ?: return@launch
+
+                val trimmed = content.trim()
+                if (!trimmed.contains("PRIVATE KEY")) {
+                    _state.value = _state.value.copy(error = "File does not look like a private key")
+                    return@launch
+                }
+                if (!trimmed.startsWith("-----BEGIN")) {
+                    _state.value = _state.value.copy(error = "Key file must start with -----BEGIN")
+                    return@launch
+                }
 
                 val fileName = getFileName(context, uri)
 
                 _state.value = _state.value.copy(
-                    keyContent = content,
+                    keyContent = trimmed,
                     keyFileName = fileName,
                     selectedKeyId = null,
                 )

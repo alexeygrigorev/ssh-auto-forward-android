@@ -66,7 +66,7 @@ android {
 
     packaging {
         resources {
-            excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "META-INF/versions/**/OSGI-INF/MANIFEST.MF"
         }
     }
 }
@@ -97,6 +97,7 @@ dependencies {
     implementation(libs.hilt.navigation.compose)
 
     implementation(libs.jsch)
+    implementation(libs.bcprov)
     implementation(libs.datastore.preferences)
 
     testImplementation("junit:junit:4.13.2")

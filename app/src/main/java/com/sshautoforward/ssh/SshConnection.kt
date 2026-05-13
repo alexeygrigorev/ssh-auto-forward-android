@@ -3,7 +3,6 @@ package com.sshautoforward.ssh
 import android.util.Log
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
-import com.jcraft.jsch.Logger
 import com.jcraft.jsch.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,31 +45,28 @@ class SshConnection(
         val jsch = JSch()
         try {
             val keyFile = java.io.File(config.privateKeyPath)
-            Log.i(TAG, "Key file path: ${config.privateKeyPath}")
-            Log.i(TAG, "Key file exists: ${keyFile.exists()}, size: ${if (keyFile.exists()) keyFile.length() else 0}")
+            log("Key file: ${config.privateKeyPath}")
             if (!keyFile.exists()) {
                 throw SshException("Private key file not found: ${config.privateKeyPath}")
             }
-            val keyContent = keyFile.readText()
+            val keyContent = keyFile.readText(Charsets.UTF_8)
             val firstLine = keyContent.lineSequence().firstOrNull() ?: ""
-            Log.i(TAG, "Key first line: $firstLine")
-            Log.i(TAG, "Key last line: ${keyContent.lineSequence().lastOrNull() ?: ""}")
-            Log.i(TAG, "Key total lines: ${keyContent.lines().size}")
+            log("Key exists (${keyFile.length()} bytes), format: $firstLine")
             if (!firstLine.contains("PRIVATE KEY")) {
                 throw SshException("File does not look like a private key: $firstLine")
             }
             if (config.passphrase != null) {
-                Log.i(TAG, "Loading identity with passphrase...")
+                log("Loading identity with passphrase...")
                 jsch.addIdentity(config.privateKeyPath, config.passphrase)
             } else {
-                Log.i(TAG, "Loading identity without passphrase...")
+                log("Loading identity without passphrase...")
                 jsch.addIdentity(config.privateKeyPath)
             }
-            Log.i(TAG, "Identity loaded successfully, names: ${jsch.identityNames}")
+            log("Identity loaded: ${jsch.identityNames}")
         } catch (e: SshException) {
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load private key: ${e.javaClass.simpleName}: ${e.message}", e)
+            log("Failed to load key: ${e.javaClass.simpleName}: ${e.message}")
             throw SshException("Failed to load private key: ${e.javaClass.simpleName}: ${e.message}", e)
         }
 
@@ -78,22 +74,30 @@ class SshConnection(
         s.setConfig(Properties().apply {
             put("StrictHostKeyChecking", "no")
             put("PreferredAuthentications", "publickey")
+            put("UserKnownHostsFile", "/dev/null")
         })
         s.timeout = DEFAULT_TIMEOUT
         s.setServerAliveInterval(config.keepAliveInterval * 1000)
         s.setServerAliveCountMax(3)
 
         try {
-            Log.i(TAG, "Creating session: ${config.username}@${config.hostname}:${config.port}")
-            Log.i(TAG, "Config: StrictHostKeyChecking=no, PreferredAuthentications=publickey, timeout=${DEFAULT_TIMEOUT}ms")
-            s.connect()
+            val addrs = java.net.InetAddress.getAllByName(config.hostname)
+            log("DNS resolved ${config.hostname} -> ${addrs.map { it.hostAddress }}")
+        } catch (e: Exception) {
+            log("DNS resolution failed for ${config.hostname}: ${e.message}")
+            throw SshException("DNS resolution failed for ${config.hostname}: ${e.message}", e)
+        }
+
+        try {
+            log("Connecting to ${config.username}@${config.hostname}:${config.port} (timeout=${DEFAULT_TIMEOUT}ms)...")
+            s.connect(DEFAULT_TIMEOUT)
             this@SshConnection.session = s
-            Log.i(TAG, "Connected to ${config.hostname}:${config.port}, server version: ${s.serverVersion}")
+            log("Connected to ${config.hostname}:${config.port}, server version: ${s.serverVersion}")
             s
         } catch (e: Exception) {
             val cause = e.cause
             val detail = if (cause != null) "${e.javaClass.simpleName}: ${e.message} (caused by ${cause.javaClass.simpleName}: ${cause.message})" else "${e.javaClass.simpleName}: ${e.message}"
-            Log.e(TAG, "Connection failed: $detail", e)
+            log("Connection failed: $detail")
             throw SshException("Connection failed: $detail", e)
         }
     }

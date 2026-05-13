@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -91,9 +92,8 @@ class AutoForwarder @Inject constructor(
 
     private suspend fun loadRemappings(hostId: Long) {
         portRemappings.clear()
-        portRemappingRepository.getByHostId(hostId).collect { remappings ->
-            remappings.forEach { portRemappings[it.remotePort] = it.localPort }
-        }
+        val remappings = portRemappingRepository.getByHostId(hostId).first()
+        remappings.forEach { portRemappings[it.remotePort] = it.localPort }
     }
 
     private fun emitLog(message: String) {
@@ -111,13 +111,6 @@ class AutoForwarder @Inject constructor(
         while (scope?.isActive == true) {
             try {
                 emitLog("Connecting to ${host.hostname}:${host.port} as ${host.username}")
-                emitLog("Key path: $privateKeyPath")
-                val keyFile = java.io.File(privateKeyPath)
-                emitLog("Key exists: ${keyFile.exists()}, size: ${if (keyFile.exists()) keyFile.length() else 0} bytes")
-                if (keyFile.exists()) {
-                    val firstLine = keyFile.readLines().firstOrNull() ?: ""
-                    emitLog("Key format: $firstLine")
-                }
 
                 val config = SshConfig(
                     hostname = host.hostname,
@@ -126,7 +119,7 @@ class AutoForwarder @Inject constructor(
                     privateKeyPath = privateKeyPath,
                     passphrase = passphrase,
                 )
-                connection = SshConnection(config)
+                connection = SshConnection(config) { msg -> emitLog(msg) }
                 val session = connection!!.connect()
                 _isConnected.value = true
                 emitLog("Connected to ${host.name} (server: ${session.serverVersion})")
