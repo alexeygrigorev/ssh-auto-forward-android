@@ -55,32 +55,21 @@ jobs:
       - name: Build Debug APK
         run: ./gradlew assembleDebug
 
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
-
-      - name: Rename APKs
+      - name: Rename APK
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/ssh-auto-forward-${VERSION}-debug.apk"
-          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/ssh-auto-forward-${VERSION}-release.apk"
 
-      - name: Upload debug APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: debug-apk
           path: app/build/outputs/apk/debug/*.apk
-
-      - name: Upload release APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-apk
-          path: app/build/outputs/apk/release/*.apk
 
       - name: Create Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/debug/*.apk
           generate_release_notes: true
