@@ -1,5 +1,6 @@
 package com.sshautoforward.ui.hosts
 
+import android.content.pm.PackageManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -39,8 +40,10 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -55,10 +58,27 @@ fun HostListScreen(
     viewModel: HostListViewModel = hiltViewModel(),
 ) {
     val hosts by viewModel.hosts.collectAsState()
+    val context = LocalContext.current
+    val versionName = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown"
+        } catch (_: Exception) {
+            "unknown"
+        }
+    }
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("SSH Auto Forward") })
+            TopAppBar(title = {
+                Column {
+                    Text("SSH Auto Forward")
+                    Text(
+                        versionName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            })
         },
         floatingActionButton = {
             FloatingActionButton(onClick = onAddHost) {

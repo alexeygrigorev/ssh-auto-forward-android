@@ -34,6 +34,21 @@ jobs:
           key: gradle-${{ hashFiles('**/*.gradle.kts', '**/libs.versions.toml') }}
           restore-keys: gradle-
 
+      - name: Generate version
+        id: version
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d-%H%M%S')
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c 1-7)
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_VERSION="${{ github.ref_name }}"
+          else
+            TAG_VERSION="dev"
+          fi
+          VERSION="${TAG_VERSION}-${TIMESTAMP}-${SHORT_SHA}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "app_version_name=${VERSION}" >> $GITHUB_ENV
+          echo "Building version: ${VERSION}"
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew || true
 
@@ -42,6 +57,12 @@ jobs:
 
       - name: Build Release APK
         run: ./gradlew assembleRelease
+
+      - name: Rename APKs
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mv app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/debug/ssh-auto-forward-${VERSION}-debug.apk"
+          mv app/build/outputs/apk/release/app-release.apk "app/build/outputs/apk/release/ssh-auto-forward-${VERSION}-release.apk"
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4

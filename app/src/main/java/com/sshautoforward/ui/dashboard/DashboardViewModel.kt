@@ -100,6 +100,9 @@ class DashboardViewModel @Inject constructor(
                         _state.value = _state.value.copy(lastError = event.message)
                         addLog("ERROR: ${event.message}")
                     }
+                    is AutoForwarderEvent.Log -> {
+                        addLog(event.message)
+                    }
                     is AutoForwarderEvent.PortDiscovered -> {
                         addLog("Discovered port ${event.port} (${event.process})")
                     }

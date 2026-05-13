@@ -39,6 +39,7 @@ sealed class AutoForwarderEvent {
     data class Error(val message: String) : AutoForwarderEvent()
     data class Connected(val host: String) : AutoForwarderEvent()
     data class Disconnected(val reason: String) : AutoForwarderEvent()
+    data class Log(val message: String) : AutoForwarderEvent()
 }
 
 class AutoForwarder @Inject constructor(
@@ -95,6 +96,11 @@ class AutoForwarder @Inject constructor(
         }
     }
 
+    private fun emitLog(message: String) {
+        Log.d(TAG, message)
+        _events.value = AutoForwarderEvent.Log(message)
+    }
+
     private suspend fun connectAndLoop(
         host: HostEntity,
         privateKeyPath: String,
@@ -104,6 +110,11 @@ class AutoForwarder @Inject constructor(
 
         while (scope?.isActive == true) {
             try {
+                emitLog("Connecting to ${host.hostname}:${host.port} as ${host.username}")
+                emitLog("Key path: $privateKeyPath")
+                val keyFile = java.io.File(privateKeyPath)
+                emitLog("Key exists: ${keyFile.exists()}, size: ${if (keyFile.exists()) keyFile.length() else 0} bytes")
+
                 val config = SshConfig(
                     hostname = host.hostname,
                     port = host.port,
@@ -114,8 +125,8 @@ class AutoForwarder @Inject constructor(
                 connection = SshConnection(config)
                 val session = connection!!.connect()
                 _isConnected.value = true
+                emitLog("Connected to ${host.name} (server: ${session.serverVersion})")
                 _events.value = AutoForwarderEvent.Connected(host.name)
-                Log.i(TAG, "Connected to ${host.name}")
                 reconnectDelay = INITIAL_RECONNECT_DELAY
 
                 scanLoop(host)
@@ -124,12 +135,16 @@ class AutoForwarder @Inject constructor(
                 _events.value = AutoForwarderEvent.Disconnected("Connection lost")
             } catch (e: Exception) {
                 _isConnected.value = false
-                Log.e(TAG, "Connection error: ${e.message}")
-                _events.value = AutoForwarderEvent.Error(e.message ?: "Unknown error")
+                val msg = e.message ?: "Unknown error"
+                emitLog("Connection error: $msg")
+                if (e.cause != null) {
+                    emitLog("Caused by: ${e.cause!!.javaClass.simpleName}: ${e.cause!!.message}")
+                }
+                _events.value = AutoForwarderEvent.Error(msg)
             }
 
             if (scope?.isActive == true) {
-                Log.i(TAG, "Reconnecting in ${reconnectDelay}ms...")
+                emitLog("Reconnecting in ${reconnectDelay / 1000}s...")
                 delay(reconnectDelay)
                 reconnectDelay = (reconnectDelay * 2).coerceAtMost(MAX_RECONNECT_DELAY)
             }

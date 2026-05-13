@@ -52,14 +52,24 @@ class SshConnection(private val config: SshConfig) {
 
         val jsch = JSch()
         try {
+            val keyFile = java.io.File(config.privateKeyPath)
+            Log.i(TAG, "Key file path: ${config.privateKeyPath}")
+            Log.i(TAG, "Key file exists: ${keyFile.exists()}, size: ${if (keyFile.exists()) keyFile.length() else 0}")
+            if (!keyFile.exists()) {
+                throw SshException("Private key file not found: ${config.privateKeyPath}")
+            }
             if (config.passphrase != null) {
+                Log.i(TAG, "Loading identity with passphrase...")
                 jsch.addIdentity(config.privateKeyPath, config.passphrase)
             } else {
+                Log.i(TAG, "Loading identity without passphrase...")
                 jsch.addIdentity(config.privateKeyPath)
             }
-            Log.i(TAG, "Loaded identity from ${config.privateKeyPath}")
+            Log.i(TAG, "Identity loaded successfully, name: ${jsch.identityNames}")
+        } catch (e: SshException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load private key from ${config.privateKeyPath}: ${e.message}", e)
+            Log.e(TAG, "Failed to load private key: ${e.message}", e)
             throw SshException("Failed to load private key: ${e.message}", e)
         }
 
@@ -73,10 +83,11 @@ class SshConnection(private val config: SshConfig) {
         s.setServerAliveCountMax(3)
 
         try {
-            Log.i(TAG, "Connecting to ${config.hostname}:${config.port} as ${config.username}...")
+            Log.i(TAG, "Creating session: ${config.username}@${config.hostname}:${config.port}")
+            Log.i(TAG, "Config: StrictHostKeyChecking=no, PreferredAuthentications=publickey, timeout=${DEFAULT_TIMEOUT}ms")
             s.connect()
             this@SshConnection.session = s
-            Log.i(TAG, "Connected to ${config.hostname}:${config.port}")
+            Log.i(TAG, "Connected to ${config.hostname}:${config.port}, server version: ${s.serverVersion}")
             s
         } catch (e: Exception) {
             Log.e(TAG, "Connection failed: ${e.message}", e)

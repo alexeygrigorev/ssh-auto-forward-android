@@ -23,8 +23,8 @@ android {
         applicationId = "com.sshautoforward"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
+        versionName = System.getenv("APP_VERSION_NAME") ?: "0.2.1-local"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
