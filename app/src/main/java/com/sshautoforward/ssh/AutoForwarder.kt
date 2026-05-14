@@ -78,6 +78,7 @@ class AutoForwarder @Inject constructor(
     private var scope: CoroutineScope? = null
     private var host: HostEntity? = null
     private var nextLocalPort = 3000
+    private var reconnectWaitJob: Job? = null
 
     val currentHostId: Long? get() = host?.id
 
@@ -146,7 +147,10 @@ class AutoForwarder @Inject constructor(
 
             if (scope?.isActive == true) {
                 emitLog("Reconnecting in ${reconnectDelay / 1000}s...")
-                delay(reconnectDelay)
+                val waitJob = scope!!.launch { delay(reconnectDelay) }
+                reconnectWaitJob = waitJob
+                waitJob.join()
+                reconnectWaitJob = null
                 reconnectDelay = (reconnectDelay * 2).coerceAtMost(MAX_RECONNECT_DELAY)
             }
         }
@@ -280,6 +284,13 @@ class AutoForwarder @Inject constructor(
             )
         }
         _ports.value = statusList
+    }
+
+    fun reconnectNow() {
+        emitLog("Network change — reconnecting immediately")
+        reconnectWaitJob?.cancel()
+        reconnectWaitJob = null
+        connection?.disconnect()
     }
 
     fun stop() {

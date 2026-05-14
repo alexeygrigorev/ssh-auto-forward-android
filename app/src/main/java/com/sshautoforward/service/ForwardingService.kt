@@ -8,6 +8,8 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -66,6 +68,7 @@ class ForwardingService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
     private var eventJob: Job? = null
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var hostName: String = ""
 
     override fun onCreate() {
@@ -82,6 +85,7 @@ class ForwardingService : Service() {
                 startForeground(NOTIFICATION_ID, buildNotification("Connecting...", 0))
                 acquireWakeLock()
                 observeEvents()
+                registerNetworkCallback()
 
                 if (autoForwarder.isRunning.value && autoForwarder.currentHostId == hostId) {
                     updateNotification("Connected", autoForwarder.ports.value.size)
@@ -99,6 +103,7 @@ class ForwardingService : Service() {
                     startForeground(NOTIFICATION_ID, buildNotification("Reconnecting...", 0))
                     acquireWakeLock()
                     observeEvents()
+                    registerNetworkCallback()
                     startForwarding(savedHostId)
                 } else {
                     stopSelf()
@@ -115,6 +120,7 @@ class ForwardingService : Service() {
     override fun onDestroy() {
         eventJob?.cancel()
         eventJob = null
+        unregisterNetworkCallback()
         releaseWakeLock()
         super.onDestroy()
     }
@@ -172,11 +178,38 @@ class ForwardingService : Service() {
         autoForwarder.stop()
         eventJob?.cancel()
         eventJob = null
+        unregisterNetworkCallback()
         releaseWakeLock()
         getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit().remove(KEY_ACTIVE_HOST_ID).apply()
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun registerNetworkCallback() {
+        if (networkCallback != null) return
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        networkCallback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                Log.d(TAG, "Network available: $network")
+                if (autoForwarder.isRunning.value) {
+                    autoForwarder.reconnectNow()
+                }
+            }
+
+            override fun onLost(network: Network) {
+                Log.d(TAG, "Network lost: $network")
+            }
+        }
+        cm.registerDefaultNetworkCallback(networkCallback!!)
+    }
+
+    private fun unregisterNetworkCallback() {
+        networkCallback?.let {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            cm.unregisterNetworkCallback(it)
+        }
+        networkCallback = null
     }
 
     private fun acquireWakeLock() {
