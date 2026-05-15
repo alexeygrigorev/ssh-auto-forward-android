@@ -17,6 +17,10 @@ Connects to a remote server via SSH, periodically scans for listening TCP ports,
 
 ## Screens
 
+<img src="docs/screenshot-dashboard.png" width="300" alt="Dashboard showing forwarded ports" />
+
+*Dashboard with auto-discovered ports forwarded from a remote server*
+
 | Host List | Add Host | Dashboard |
 |-----------|----------|-----------|
 | List of configured SSH hosts with status | Configure host, upload key, set options | Live port table with toggle/open actions |
