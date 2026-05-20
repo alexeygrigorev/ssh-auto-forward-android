@@ -134,9 +134,11 @@ class AutoForwarder @Inject constructor(
                 scanLoop(host)
 
                 _isConnected.value = false
+                resetTunnelsForReconnect()
                 _events.value = AutoForwarderEvent.Disconnected("Connection lost")
             } catch (e: Exception) {
                 _isConnected.value = false
+                resetTunnelsForReconnect()
                 val msg = e.message ?: "Unknown error"
                 emitLog("Connection error: $msg")
                 if (e.cause != null) {
@@ -164,7 +166,20 @@ class AutoForwarder @Inject constructor(
                 Log.e(TAG, "Scan error: ${e.message}")
                 if (!connection?.isConnected!!) break
             }
-            delay(host.scanIntervalSec * 1000L)
+            waitForNextScan(host.scanIntervalSec * 1000L)
+        }
+    }
+
+    private suspend fun waitForNextScan(delayMillis: Long) {
+        var remaining = delayMillis
+        while (
+            remaining > 0 &&
+            scope?.isActive == true &&
+            connection?.isConnected == true
+        ) {
+            val step = remaining.coerceAtMost(1_000L)
+            delay(step)
+            remaining -= step
         }
     }
 
@@ -175,7 +190,7 @@ class AutoForwarder @Inject constructor(
         remotePorts.forEach { rp ->
             processNames[rp.port] = rp.processName
             if (rp.port !in tunnels && rp.port !in failedPorts) {
-                if (rp.port <= host.maxAutoPort && rp.port >= host.skipPortsBelow) {
+                if (shouldForwardPort(rp.port, host)) {
                     forwardPort(rp.port, host)
                 }
             }
@@ -190,6 +205,11 @@ class AutoForwarder @Inject constructor(
         failedPorts.removeAll { it !in remotePortSet }
 
         updatePortsState()
+    }
+
+    private fun shouldForwardPort(remotePort: Int, host: HostEntity): Boolean {
+        return remotePort in manualPorts ||
+            (remotePort <= host.maxAutoPort && remotePort >= host.skipPortsBelow)
     }
 
     fun togglePort(remotePort: Int) {
@@ -242,6 +262,17 @@ class AutoForwarder @Inject constructor(
         localPortMap.remove(remotePort)
         Log.i(TAG, "Stopped forwarding port $remotePort")
         _events.value = AutoForwarderEvent.PortRemoved(remotePort)
+    }
+
+    private fun resetTunnelsForReconnect() {
+        if (tunnels.isEmpty() && localPortMap.isEmpty() && failedPorts.isEmpty()) return
+
+        tunnels.values.toList().forEach { it.stop() }
+        tunnels.clear()
+        localPortMap.clear()
+        failedPorts.clear()
+        updatePortsState()
+        emitLog("Cleared local forwards; they will be recreated after reconnect")
     }
 
     private fun resolveLocalPort(remotePort: Int, host: HostEntity): Int {
