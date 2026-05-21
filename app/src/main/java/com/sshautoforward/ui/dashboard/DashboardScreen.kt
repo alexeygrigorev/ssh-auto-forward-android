@@ -3,6 +3,7 @@ package com.sshautoforward.ui.dashboard
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +23,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Circle
-import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
@@ -226,8 +226,13 @@ private fun PortRow(
         label = "portBg",
     )
 
+    val isForwarding = port.state == ForwardState.FORWARDING ||
+        port.state == ForwardState.FORWARDING_MANUAL
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isForwarding) Modifier.clickable(onClick = onOpenUrl) else Modifier),
         colors = CardDefaults.cardColors(containerColor = bgColor),
     ) {
         Row(
@@ -258,9 +263,7 @@ private fun PortRow(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (port.state == ForwardState.FORWARDING ||
-                port.state == ForwardState.FORWARDING_MANUAL
-            ) {
+            if (isForwarding) {
                 val traffic = formatBytes(port.bytesForwarded + port.bytesReceived)
                 Text(
                     traffic,
@@ -270,10 +273,7 @@ private fun PortRow(
                 )
             }
 
-            if (port.state == ForwardState.FORWARDING || port.state == ForwardState.FORWARDING_MANUAL) {
-                IconButton(onClick = onOpenUrl, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.OpenInBrowser, contentDescription = "Open URL", modifier = Modifier.size(18.dp))
-                }
+            if (isForwarding) {
                 IconButton(onClick = onToggle, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Stop, contentDescription = "Stop", modifier = Modifier.size(18.dp))
                 }
