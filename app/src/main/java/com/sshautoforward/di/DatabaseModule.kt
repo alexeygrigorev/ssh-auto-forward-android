@@ -5,6 +5,7 @@ import androidx.room.Room
 import com.sshautoforward.data.db.AppDatabase
 import com.sshautoforward.data.db.dao.HostDao
 import com.sshautoforward.data.db.dao.PortRemappingDao
+import com.sshautoforward.data.db.dao.PortUsageDao
 import com.sshautoforward.data.db.dao.SshKeyDao
 import com.sshautoforward.util.ReleaseChecker
 import dagger.Module
@@ -21,7 +22,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase =
-        Room.databaseBuilder(context, AppDatabase::class.java, "ssh-auto-forward.db").build()
+        Room.databaseBuilder(context, AppDatabase::class.java, "ssh-auto-forward.db")
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides
     fun provideHostDao(db: AppDatabase): HostDao = db.hostDao()
@@ -31,6 +34,9 @@ object DatabaseModule {
 
     @Provides
     fun providePortRemappingDao(db: AppDatabase): PortRemappingDao = db.portRemappingDao()
+
+    @Provides
+    fun providePortUsageDao(db: AppDatabase): PortUsageDao = db.portUsageDao()
 
     @Provides
     @Singleton

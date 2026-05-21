@@ -4,6 +4,7 @@ import android.util.Log
 import com.sshautoforward.data.db.entity.HostEntity
 import com.sshautoforward.data.db.entity.PortRemappingEntity
 import com.sshautoforward.data.repository.PortRemappingRepository
+import com.sshautoforward.data.repository.PortUsageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -47,6 +48,7 @@ sealed class AutoForwarderEvent {
 @Singleton
 class AutoForwarder @Inject constructor(
     private val portRemappingRepository: PortRemappingRepository,
+    private val portUsageRepository: PortUsageRepository,
 ) {
     companion object {
         private const val TAG = "AutoForwarder"
@@ -258,15 +260,27 @@ class AutoForwarder @Inject constructor(
     }
 
     private fun stopTunnel(remotePort: Int) {
+        flushTunnelBytes(remotePort)
         tunnels.remove(remotePort)?.stop()
         localPortMap.remove(remotePort)
         Log.i(TAG, "Stopped forwarding port $remotePort")
         _events.value = AutoForwarderEvent.PortRemoved(remotePort)
     }
 
+    private fun flushTunnelBytes(remotePort: Int) {
+        val tunnel = tunnels[remotePort] ?: return
+        val hostId = host?.id ?: return
+        val bytes = tunnel.bytesForwarded + tunnel.bytesReceived
+        if (bytes <= 0) return
+        scope?.launch {
+            portUsageRepository.addBytes(hostId, remotePort, bytes)
+        }
+    }
+
     private fun resetTunnelsForReconnect() {
         if (tunnels.isEmpty() && localPortMap.isEmpty() && failedPorts.isEmpty()) return
 
+        tunnels.keys.toList().forEach { flushTunnelBytes(it) }
         tunnels.values.toList().forEach { it.stop() }
         tunnels.clear()
         localPortMap.clear()
@@ -328,6 +342,7 @@ class AutoForwarder @Inject constructor(
         _isRunning.value = false
         _isConnected.value = false
         scanJob?.cancel()
+        tunnels.keys.toList().forEach { flushTunnelBytes(it) }
         tunnels.values.toList().forEach { it.stop() }
         tunnels.clear()
         localPortMap.clear()

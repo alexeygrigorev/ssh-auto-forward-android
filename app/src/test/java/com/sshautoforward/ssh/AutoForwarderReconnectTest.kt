@@ -1,9 +1,12 @@
 package com.sshautoforward.ssh
 
 import com.sshautoforward.data.db.dao.PortRemappingDao
+import com.sshautoforward.data.db.dao.PortUsageDao
 import com.sshautoforward.data.db.entity.HostEntity
 import com.sshautoforward.data.db.entity.PortRemappingEntity
+import com.sshautoforward.data.db.entity.PortUsageEntity
 import com.sshautoforward.data.repository.PortRemappingRepository
+import com.sshautoforward.data.repository.PortUsageRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -29,7 +32,10 @@ class AutoForwarderReconnectTest {
             keyFile = File("docker/test_key")
         }
         keyPath = keyFile.absolutePath
-        autoForwarder = AutoForwarder(PortRemappingRepository(FakePortRemappingDao()))
+        autoForwarder = AutoForwarder(
+            PortRemappingRepository(FakePortRemappingDao()),
+            PortUsageRepository(FakePortUsageDao()),
+        )
     }
 
     @After
@@ -163,5 +169,12 @@ class AutoForwarderReconnectTest {
         override suspend fun deleteByRemotePort(hostId: Long, remotePort: Int) = Unit
 
         override suspend fun deleteByHostId(hostId: Long) = Unit
+    }
+
+    private class FakePortUsageDao : PortUsageDao {
+        override fun getByHostId(hostId: Long): Flow<List<PortUsageEntity>> = flowOf(emptyList())
+        override suspend fun insertIfMissing(usage: PortUsageEntity) = Unit
+        override suspend fun incrementClick(hostId: Long, remotePort: Int, now: Long) = Unit
+        override suspend fun addBytes(hostId: Long, remotePort: Int, bytes: Long, now: Long) = Unit
     }
 }

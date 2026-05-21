@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.sshautoforward.data.db.entity.PortUsageEntity
 import com.sshautoforward.ssh.ForwardState
 import com.sshautoforward.ssh.PortForwardStatus
 import java.text.SimpleDateFormat
@@ -63,6 +65,7 @@ fun DashboardScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val ports by viewModel.ports.collectAsState()
+    val usage by viewModel.usage.collectAsState()
     val logMessages by viewModel.logMessages.collectAsState()
     val context = LocalContext.current
 
@@ -138,8 +141,10 @@ fun DashboardScreen(
                     items(ports, key = { it.remotePort }) { port ->
                         PortRow(
                             port = port,
+                            usage = usage[port.remotePort],
                             onToggle = { viewModel.togglePort(port.remotePort) },
                             onOpenUrl = {
+                                viewModel.recordOpenUrl(port.remotePort)
                                 val url = "http://127.0.0.1:${port.localPort}"
                                 context.startActivity(
                                     Intent(Intent.ACTION_VIEW, Uri.parse(url))
@@ -208,12 +213,23 @@ fun DashboardScreen(
     }
 }
 
+private const val FREQUENT_SCORE_THRESHOLD = 3.0
+private const val BYTES_PER_SCORE_POINT = 1024.0 * 1024.0
+
+private fun usageScore(usage: PortUsageEntity?): Double {
+    if (usage == null) return 0.0
+    return usage.clickCount + usage.totalBytes / BYTES_PER_SCORE_POINT
+}
+
 @Composable
 private fun PortRow(
     port: PortForwardStatus,
+    usage: PortUsageEntity?,
     onToggle: () -> Unit,
     onOpenUrl: () -> Unit,
 ) {
+    val isFrequent = usageScore(usage) >= FREQUENT_SCORE_THRESHOLD
+
     val bgColor by animateColorAsState(
         when (port.state) {
             ForwardState.FORWARDING, ForwardState.FORWARDING_MANUAL ->
@@ -241,6 +257,15 @@ private fun PortRow(
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (isFrequent) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = "Frequent",
+                    tint = Color(0xFFFFB300),
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Text(
                 "${port.remotePort}",
                 style = MaterialTheme.typography.bodyLarge,
