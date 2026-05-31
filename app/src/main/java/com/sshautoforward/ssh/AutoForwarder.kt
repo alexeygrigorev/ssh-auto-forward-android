@@ -8,6 +8,7 @@ import com.sshautoforward.data.repository.PortUsageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,8 +91,10 @@ class AutoForwarder @Inject constructor(
         this.host = host
         this.scope = CoroutineScope(Dispatchers.IO)
         this._isRunning.value = true
+        this._isConnected.value = false
+        this._events.value = null
 
-        scope!!.launch {
+        scanJob = scope!!.launch {
             loadRemappings(host.id)
             connectAndLoop(host, privateKeyPath, passphrase)
         }
@@ -148,6 +151,9 @@ class AutoForwarder @Inject constructor(
                 }
                 _events.value = AutoForwarderEvent.Error(msg)
             }
+
+            connection?.disconnect()
+            connection = null
 
             if (scope?.isActive == true) {
                 emitLog("Reconnecting in ${reconnectDelay / 1000}s...")
@@ -333,6 +339,8 @@ class AutoForwarder @Inject constructor(
 
     fun reconnectNow() {
         emitLog("Network change — reconnecting immediately")
+        _isConnected.value = false
+        _events.value = AutoForwarderEvent.Disconnected("Network change")
         reconnectWaitJob?.cancel()
         reconnectWaitJob = null
         connection?.disconnect()
@@ -341,7 +349,6 @@ class AutoForwarder @Inject constructor(
     fun stop() {
         _isRunning.value = false
         _isConnected.value = false
-        scanJob?.cancel()
         tunnels.keys.toList().forEach { flushTunnelBytes(it) }
         tunnels.values.toList().forEach { it.stop() }
         tunnels.clear()
@@ -349,6 +356,12 @@ class AutoForwarder @Inject constructor(
         manualPorts.clear()
         processNames.clear()
         failedPorts.clear()
+        reconnectWaitJob?.cancel()
+        reconnectWaitJob = null
+        scanJob?.cancel()
+        scanJob = null
+        scope?.cancel()
+        scope = null
         connection?.disconnect()
         connection = null
         _ports.value = emptyList()
